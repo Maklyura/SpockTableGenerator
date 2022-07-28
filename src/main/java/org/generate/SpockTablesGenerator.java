@@ -1,18 +1,41 @@
 package org.generate;
 
+import com.opencsv.CSVParser;
+import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.math.NumberUtils;
 
 import java.io.*;
 import java.util.*;
 
+@Getter
+@Setter
+@Builder
 public class SpockTablesGenerator {
 
-    public static void generate(File input, File output) {
+    @Builder.Default
+    private Boolean quoteNumbers = true;
+    @Builder.Default
+    private Boolean quoteBoolean = false;
+    @Builder.Default
+    private Boolean quoteNull = false;
+    @Builder.Default
+    private Character delimiter = '|';
+
+    public void generate(File input, File output) {
 
         List<List<String>> records = new ArrayList<>();
         List<List<String>> transposedRecords;
-        try (CSVReader csvReader = new CSVReader(new FileReader((input)));) {
+        final CSVParser parser = new CSVParserBuilder()
+                .withSeparator(delimiter)
+                .build();
+        try (final CSVReader csvReader = new CSVReaderBuilder(new FileReader(input))
+                .withCSVParser(parser)
+                .build();) {
             String[] values = null;
             while ((values = csvReader.readNext()) != null) {
                 records.add(Arrays.asList(values));
@@ -41,7 +64,7 @@ public class SpockTablesGenerator {
         }
     }
 
-    public static Integer findLongest(List<String> records) {
+    public Integer findLongest(List<String> records) {
         int longest = 0;
         for (String value : records) {
             if (longest < value.length()) {
@@ -51,7 +74,7 @@ public class SpockTablesGenerator {
         return longest;
     }
 
-    public static <T> List<List<T>> transpose(List<List<T>> table) {
+    public <T> List<List<T>> transpose(List<List<T>> table) {
         List<List<T>> transposed = new ArrayList<List<T>>();
         final int size = table.get(0).size();
         for (int i = 0; i < size; i++) {
@@ -64,13 +87,11 @@ public class SpockTablesGenerator {
         return transposed;
     }
 
-    public static List<String> getFormattedColumn(List<String> values) {
+    public List<String> getFormattedColumn(List<String> values) {
         List<String> columns = new ArrayList<>();
         for (int i = 0; i < values.size(); i++) {
             if (i != 0) {
-                if (!NumberUtils.isCreatable(values.get(i)) &&
-                        !isBoolean(values.get(i)) &&
-                        !values.get(i).equals("null")) {
+                if (shouldBeQuoted(values.get(i))) {
                     values.set(i, "\"" + values.get(i) + "\"");
                 }
             }
@@ -103,8 +124,14 @@ public class SpockTablesGenerator {
         return values;
     }
 
-    public static boolean isBoolean(String str) {
+    private static boolean isBoolean(String str) {
         return (str.equalsIgnoreCase("true") || str.equalsIgnoreCase("false"));
     }
 
-}
+    private boolean shouldBeQuoted(String str) {
+        if (NumberUtils.isParsable(str)) return quoteNumbers;
+        if (isBoolean(str)) return quoteBoolean;
+        if (str.equals("null")) return quoteNull;
+        return true;
+        }
+    }
